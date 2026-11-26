@@ -1,0 +1,107 @@
+
+/* Page */
+body {
+    background: linear-gradient(135deg, #eef2f7, #e3eaf3);
+    color: #263238;
+    font-family: "Segoe UI", Arial, sans-serif;
+    min-height: 100vh;
+}
+
+/* Dashboard */
+.dashboard-container {
+    max-width: 1350px;
+    margin: auto;
+}
+
+header h1 {
+    color: #2563eb;
+    font-size: 36px;
+    font-weight: 700;
+}
+
+header p {
+    color: #718096;
+}
+
+/* Employee Card */
+.card {
+    border-radius: 16px;
+}
+
+.card-body {
+    padding: 35px !important;
+}
+
+.icon-box {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 24px;
+    border-radius: 12px;
+}
+
+/* Form Sections */
+.section-heading {
+    padding: 10px 14px;
+    background: #eff6ff;
+    color: #1e40af;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* Form Fields */
+.form-control-lg {
+    min-height: 43px;
+    padding: 8px 12px;
+    font-size: 14px;
+}
+
+.form-label {
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.form-control:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* Submit Button */
+.btn-primary {
+    min-height: 48px;
+    background: #2563eb;
+    border-color: #2563eb;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+/* Result */
+#result {
+    border-radius: 8px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 15px !important;
+    }
+
+    .card-body {
+        padding: 22px !important;
+    }
+
+    header h1 {
+        font-size: 27px;
+    }
+}
