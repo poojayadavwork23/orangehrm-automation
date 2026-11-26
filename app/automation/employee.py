@@ -8,14 +8,20 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 def wait_for_loader(driver):
+    """
+    Wait until OrangeHRM form loader disappears.
+    """
     WebDriverWait(driver, 30).until(
         EC.invisibility_of_element_located(
-            (By.CLASS_NAME, "oxd-form-loader")
+            (By.CSS_SELECTOR, ".oxd-form-loader")
         )
     )
 
 
 def clear_and_type(field, value):
+    """
+    Clear existing input and enter new value.
+    """
     field.click()
     field.send_keys(Keys.CONTROL, "a")
     field.send_keys(Keys.BACKSPACE)
@@ -44,6 +50,7 @@ def add_employee(driver, first_name, last_name, employee_id):
     wait = WebDriverWait(driver, 30)
 
     try:
+
         # Step 1: Open PIM
         wait.until(
             EC.element_to_be_clickable(
@@ -60,11 +67,18 @@ def add_employee(driver, first_name, last_name, employee_id):
             )
         ).click()
 
+        # Wait for Add Employee page
+        wait.until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//h6[normalize-space()='Add Employee']")
+            )
+        )
+
         wait_for_loader(driver)
 
         # Step 3: Enter First Name
         first_name_field = wait.until(
-            EC.visibility_of_element_located(
+            EC.element_to_be_clickable(
                 (By.NAME, "firstName")
             )
         )
@@ -72,16 +86,22 @@ def add_employee(driver, first_name, last_name, employee_id):
         clear_and_type(first_name_field, first_name)
 
         # Step 4: Enter Last Name
-        last_name_field = driver.find_element(
-            By.NAME, "lastName"
+        last_name_field = wait.until(
+            EC.element_to_be_clickable(
+                (By.NAME, "lastName")
+            )
         )
 
         clear_and_type(last_name_field, last_name)
 
         # Step 5: Enter Employee ID
-        employee_id_field = driver.find_element(
-            By.XPATH,
-            "//label[normalize-space()='Employee Id']/following::input[1]"
+        employee_id_field = wait.until(
+            EC.element_to_be_clickable(
+                (
+                    By.XPATH,
+                    "//label[normalize-space()='Employee Id']/following::input[1]"
+                )
+            )
         )
 
         clear_and_type(employee_id_field, employee_id)
@@ -118,76 +138,62 @@ def add_employee(driver, first_name, last_name, employee_id):
 
         # Step 8: Verify successful employee creation
 
-        try:
-            # Wait until Personal Details URL opens
-            wait.until(
-                lambda d: "/pim/viewPersonalDetails/" in d.current_url
+        # Wait until Personal Details URL opens
+        wait.until(
+            lambda d: "/pim/viewPersonalDetails/" in d.current_url
+        )
+
+        # Wait until Personal Details heading appears
+        wait.until(
+            EC.visibility_of_element_located(
+                (By.XPATH, "//h6[normalize-space()='Personal Details']")
             )
+        )
 
-            # Wait until Personal Details heading appears
-            wait.until(
-                EC.visibility_of_element_located(
-                    (By.XPATH, "//h6[normalize-space()='Personal Details']")
-                )
+        print("Personal Details page opened.")
+
+        # Wait for loading spinner to disappear
+        wait.until(
+            EC.invisibility_of_element_located(
+                (By.CSS_SELECTOR, ".oxd-loading-spinner-container")
             )
+        )
 
-            print("Personal Details page opened.")
+        # Find saved Employee ID using JavaScript
+        saved_id = wait.until(
+            lambda d: d.execute_script("""
+                const groups = document.querySelectorAll(
+                    '.oxd-input-group'
+                );
 
-            # Wait for OrangeHRM loading spinner to disappear
-            wait.until(
-                EC.invisibility_of_element_located(
-                    (By.CSS_SELECTOR, ".oxd-loading-spinner-container")
-                )
-            )
+                for (const group of groups) {
+                    const label = group.querySelector('label');
 
-            # Find Employee ID field after page loading
-            saved_id = wait.until(
-                lambda d: d.execute_script("""
-                    const groups = document.querySelectorAll('.oxd-input-group');
+                    if (
+                        label &&
+                        label.innerText.trim() === 'Employee Id'
+                    ) {
+                        const input = group.querySelector('input');
 
-                    for (const group of groups) {
-                        const label = group.querySelector('label');
-
-                        if (
-                            label &&
-                            label.innerText.trim() === 'Employee Id'
-                        ) {
-                            const input = group.querySelector('input');
-
-                            if (input && input.value.trim()) {
-                                return input.value.trim();
-                            }
+                        if (input && input.value.trim()) {
+                            return input.value.trim();
                         }
                     }
+                }
 
-                    return false;
-                """)
+                return false;
+            """)
+        )
+
+        print("Submitted Employee ID:", employee_id)
+        print("Saved Employee ID:", saved_id)
+
+        if saved_id != str(employee_id).strip():
+            raise Exception(
+                f"Employee ID mismatch. Expected {employee_id}, got {saved_id}"
             )
 
-            print("Submitted Employee ID:", employee_id)
-            print("Saved Employee ID:", saved_id)
-
-            # Verify saved Employee ID
-            if saved_id != str(employee_id).strip():
-                raise Exception(
-                    f"Employee ID mismatch. Expected {employee_id}, got {saved_id}"
-                )
-
-            print("Employee created and saved successfully!")
-
-        except Exception as e:
-
-            os.makedirs("screenshots", exist_ok=True)
-
-            driver.save_screenshot(
-                "screenshots/employee_save_error.png"
-            )
-
-            print("Employee save verification failed:", repr(e))
-            print("Expected Employee ID:", employee_id)
-            print("Current URL:", driver.current_url)
-
-            raise
+        print("Employee created and saved successfully!")
 
         # Step 9: Open Employee List
         wait.until(
@@ -206,7 +212,7 @@ def add_employee(driver, first_name, last_name, employee_id):
 
         # Step 10: Search Employee ID
         search_id = wait.until(
-            EC.visibility_of_element_located(
+            EC.element_to_be_clickable(
                 (
                     By.XPATH,
                     "//label[normalize-space()='Employee Id']/following::input[1]"
@@ -230,19 +236,15 @@ def add_employee(driver, first_name, last_name, employee_id):
         """)
 
         # Step 11: Click Search
-
         search_button = wait.until(
             EC.element_to_be_clickable(
-                (
-                    By.XPATH,
-                    "//button[normalize-space()='Search']"
-                )
+                (By.XPATH, "//button[normalize-space()='Search']")
             )
         )
 
         search_button.click()
 
-        # Wait for the search results to update
+        # Wait for search results to update
         wait.until(
             lambda d: d.execute_script("""
                 const table = document.querySelector('.oxd-table-body');
