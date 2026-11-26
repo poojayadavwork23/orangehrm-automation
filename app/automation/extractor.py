@@ -7,74 +7,179 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
+def wait_for_loader(driver):
+    WebDriverWait(driver, 30).until(
+        EC.invisibility_of_element_located(
+            (By.CLASS_NAME, "oxd-form-loader")
+        )
+    )
+
+
+def get_employee_rows(driver):
+    """
+    Get employee table data using JavaScript.
+    """
+
+    return driver.execute_script("""
+        const rows = document.querySelectorAll(
+            '.oxd-table-body .oxd-table-row'
+        );
+
+        return Array.from(rows).map(row =>
+            Array.from(
+                row.querySelectorAll('.oxd-table-cell')
+            ).map(cell => cell.innerText.trim())
+        );
+    """)
+
+
 def extract_employee_list(driver):
-    wait = WebDriverWait(driver, 20)
 
-    # Open PIM
-    pim_menu = wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//span[text()='PIM']")
-        )
-    )
-    pim_menu.click()
+    wait = WebDriverWait(driver, 30)
 
-    # Open Employee List
-    employee_list = wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//a[text()='Employee List']")
-        )
-    )
-    employee_list.click()
-
-    # Wait for employee table
-    wait.until(
-        EC.visibility_of_element_located(
-            (By.CLASS_NAME, "oxd-table-body")
-        )
-    )
-
-    # Extract table headers
     headers = [
-        cell.text.strip()
-        for cell in driver.find_elements(
-            By.CSS_SELECTOR, ".oxd-table-header .oxd-table-cell"
-        )
+        "Employee ID",
+        "First Name",
+        "Last Name",
+        "Job Title",
+        "Employment Status",
+        "Sub Unit"
     ]
 
-    # Extract employee rows
-    rows = driver.find_elements(
-        By.CSS_SELECTOR, ".oxd-table-body .oxd-table-row"
+    employees = []
+    seen_employee_ids = set()
+
+    # Step 1: Navigate to Employee List if needed
+    if not driver.current_url.endswith("/pim/viewEmployeeList"):
+
+        wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//span[normalize-space()='PIM']")
+            )
+        ).click()
+
+        wait_for_loader(driver)
+
+        wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//a[normalize-space()='Employee List']")
+            )
+        ).click()
+
+        wait_for_loader(driver)
+
+    # Step 2: Wait for table
+    wait.until(
+        EC.presence_of_element_located(
+            (By.CSS_SELECTOR, ".oxd-table-body")
+        )
     )
 
-    employees = []
+    # Step 3: Reset previous filters
+    reset_buttons = driver.find_elements(
+        By.XPATH,
+        "//button[.//span[normalize-space()='Reset']]"
+    )
 
-    for row in rows:
-        cells = row.find_elements(
-            By.CSS_SELECTOR, ".oxd-table-cell"
+    if reset_buttons:
+        reset_buttons[0].click()
+        wait_for_loader(driver)
+
+    # Step 4: Extract all pages
+    while True:
+
+        wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".oxd-table-body")
+            )
         )
 
-        values = [cell.text.strip() for cell in cells]
+        rows = get_employee_rows(driver)
 
-        if values:
-            employees.append(dict(zip(headers, values)))
+        print("Current page employee rows:", len(rows))
 
-    # Save CSV
+        for values in rows:
+
+            if len(values) < 7 or not values[1].strip():
+                continue
+
+            employee = {
+                "Employee ID": values[1].strip(),
+                "First Name": values[2].strip(),
+                "Last Name": values[3].strip(),
+                "Job Title": values[4].strip(),
+                "Employment Status": values[5].strip(),
+                "Sub Unit": values[6].strip()
+            }
+
+            employee_id = employee["Employee ID"]
+
+            if employee_id not in seen_employee_ids:
+                employees.append(employee)
+                seen_employee_ids.add(employee_id)
+
+        # Step 5: Check Next Page
+        next_buttons = driver.find_elements(
+            By.CSS_SELECTOR,
+            "button.oxd-pagination-page-item--next"
+        )
+
+        if not next_buttons:
+            break
+
+        next_button = next_buttons[0]
+
+        button_class = next_button.get_attribute("class") or ""
+
+        if (
+            next_button.get_attribute("disabled") is not None
+            or "oxd-pagination-page-item--disabled" in button_class
+        ):
+            break
+
+        previous_first_row = rows[0] if rows else None
+
+        next_button.click()
+
+        # Step 6: Wait for next page
+        def page_changed(driver):
+
+            new_rows = get_employee_rows(driver)
+
+            return (
+                bool(new_rows)
+                and new_rows[0] != previous_first_row
+            )
+
+        wait.until(page_changed)
+
+    # Step 7: Save CSV
     os.makedirs("exports", exist_ok=True)
 
-    if employees:
-        with open(
-            "exports/employees.csv",
-            "w",
-            newline="",
-            encoding="utf-8-sig"
-        ) as file:
-            writer = csv.DictWriter(
-                file,
-                fieldnames=headers
-            )
-            writer.writeheader()
-            writer.writerows(employees)
+    csv_path = os.path.join(
+        "exports",
+        "employees.csv"
+    )
 
-    print(f"Extracted {len(employees)} employees.")
+    with open(
+        csv_path,
+        "w",
+        newline="",
+        encoding="utf-8-sig"
+    ) as file:
+
+        writer = csv.DictWriter(
+            file,
+            fieldnames=headers
+        )
+
+        writer.writeheader()
+        writer.writerows(employees)
+
+    print("--------------------------------")
+    print("Employee extraction completed!")
+    print("Total employees:", len(employees))
+    print("CSV saved:", csv_path)
+    print("--------------------------------")
 
     return employees
